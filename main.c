@@ -10,7 +10,8 @@ bool dataReceivedFlag = true;
 void UART5_send(void);
 void UART5_Transmit(uint8_t data);
 
-void PortF_Initialisation(void){
+void PortF_Initialisation(void)
+{
 
     // PORTF, PF7-PF0, PF4-0X01, PF3-green, PF2-blue, PF1-red, PF0-0X10
     SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOF;   // Enable clock for Port F
@@ -23,7 +24,8 @@ void PortF_Initialisation(void){
 
 }
 
-void PORTE_Initialisation(void) {
+void PORTE_Initialisation(void)
+{
 
     // Enable the clock for UART5 and GPIO Port D
 
@@ -42,9 +44,8 @@ void PORTE_Initialisation(void) {
     GPIO_PORTE_PCTL_R |= 0x00110000;
 }
 
-void UART5_Initialisation(void) {
-
-
+void UART5_Initialisation(void)
+{
     UART5_CTL_R = 0x00;                     // Disable UART before configuration
     UART5_IBRD_R = 104;                     // Integer part of BRD = 16MHz / (16 * 9600) = 104
     UART5_FBRD_R = 11;                      // Fractional part of BRD = 0.16 * 64 + 0.5 = 11
@@ -54,21 +55,24 @@ void UART5_Initialisation(void) {
 
 }
 
-uint8_t UART5_ReceiveByte(void) {
+uint8_t UART5_ReceiveByte(void)
+{
 
     while ((UART5_FR_R & 0x10) != 0) // Wait until RXFE is 0
     {
         UART5_send();
     }
     return UART5_DR_R; // Read data
-//return 0;
+
 }
 
-void UART5_Read(void){
+void UART5_Read(void)
+{
 
     receivedByte =  UART5_ReceiveByte();
 
-    if(dataReceivedFlag){
+    if(dataReceivedFlag)
+    {
 
         if (UART5_FR_R & 0x04) {
             GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
@@ -76,33 +80,31 @@ void UART5_Read(void){
             GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
         }
 
-    else{
-
-
-        if (receivedByte == 0xAA)
-        {
-            GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
-            GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
-            GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
-
-            }
-        else if (receivedByte == 0xF0)
-        {
-            GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
-            GPIO_PORTF_DATA_R |= 0x04;   // Turn on blue LED
-            GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
-
-        }
         else
         {
-            GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
-            GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
-            GPIO_PORTF_DATA_R |= 0x02;     // Turn on red LED (error)
 
+            if (receivedByte == 0xAA)
+            {
+                GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
+                GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
+                GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
+
+                }
+            else if (receivedByte == 0xF0)
+            {
+                GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
+                GPIO_PORTF_DATA_R |= 0x04;   // Turn on blue LED
+                GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
+
+            }
+            else
+            {
+                GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
+                GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
+                GPIO_PORTF_DATA_R |= 0x02;     // Turn on red LED (error)
+
+            }
         }
-    }
-
-
 
     }
 }
@@ -128,7 +130,6 @@ int main(void) {
     PortF_Initialisation();
     PORTE_Initialisation();
     UART5_Initialisation();
-    //__asm("    cpsie i");                // Global interrupt enable
 
     while (1) {
 
