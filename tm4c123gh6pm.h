@@ -125,6 +125,7 @@
 #define INT_PWM1_3              153         // PWM1 Generator 3
 #define INT_PWM1_FAULT          154         // PWM1 Fault
 
+
 //*****************************************************************************
 //
 // Watchdog Timer registers (WATCHDOG0)

@@ -1,192 +1,137 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdbool.h>
-#include <tm4c123gh6pm.h>
+#include "tm4c123gh6pm.h"
 
 
 
-void GPIO_INIT()
-{
+uint8_t receivedByte;
+bool dataReceivedFlag = true;
 
-        SYSCTL_RCGCGPIO_R |= 0x10;  //enable clock to portE
+void UART5_send(void);
+void UART5_Transmit(uint8_t data);
 
-       //GPIO_PORTE_LOCK_R = 0X4C4F434B;
-       //GPIO_PORTE_CR_R = 0X1F;
+void PortF_Initialisation(void){
 
-      // GPIO_PORTE_DIR_R = 0x0E;    //set correct directions
-
-       GPIO_PORTE_DEN_R = 0x30;    //enable TxRx operation at pins
-
-       //GPIO_PORTE_PUR_R = 0x11;    //enable pullups for switches
-
-}
-
-void GPIO_PORTF_INIT(void)
-{
-    SYSCTL_RCGCGPIO_R |= 0x20;  //enable clock to portf
-
-    GPIO_PORTF_LOCK_R = 0X4C4F434B;
-    GPIO_PORTF_CR_R = 0X1F;
-
-    GPIO_PORTF_DIR_R = 0x0E;    //set correct directions
-
-    GPIO_PORTF_DEN_R = 0x1F;    //enable digital operation at pins
-    GPIO_PORTF_PUR_R = 0x11;    //enable pullups for switches
-
-
+    // PORTF, PF7-PF0, PF4-0X01, PF3-green, PF2-blue, PF1-red, PF0-0X10
+    SYSCTL_RCGC2_R |= SYSCTL_RCGC2_GPIOF;   // Enable clock for Port F
+    GPIO_PORTF_LOCK_R = GPIO_LOCK_KEY;      // Unlock Port F
+    GPIO_PORTF_CR_R = 0x1f;                 // Commit changes,1-enable (PF7-PF0 = 00011111)
+    GPIO_PORTF_DEN_R = 0x1f;                // Digital function enable, 1-enable (PF7-PF0 = 00011111)
+    GPIO_PORTF_DIR_R = 0x0e;                // Set output/input, 1-output (PF7-PF0 = 00001110)
+    GPIO_PORTF_PUR_R = 0x11;                // Enable pull-up resistor, 1-enable (PF7-PF0 = 00010001)
+    GPIO_PORTF_DATA_R = 0x00;               // Reset the data register (PF7-PF0 = 00000000)
 
 }
 
+void PORTE_Initialisation(void) {
 
-void UART_INIT(void)
-{
+    // Enable the clock for UART5 and GPIO Port D
 
+    SYSCTL_RCGCGPIO_R |= SYSCTL_RCGC2_GPIOE;     // Enable GPIO Port D clock
+    SYSCTL_RCGCUART_R |= (1<<5);     // Enable UART5 clock
+    // while ((SYSCTL_PRGPIO_R & (1U << 3)) == 0) {} // Wait for Port D to be ready
 
-    /*
-     *
-     *  clock Regs..............
-     *  UARTCC
-     *  UARTCTL....set to zero then set to 1 after configuration
-     */
+    // Configure PD6 (RX) and PD7 (TX)
 
-        //SYSCTL_RCGCUART_R = 0x20;   // choose  UART5 ALREADY CHOOSEN IN MAIN FXN AS ITS CREATES STEP OVER PROBLEM
+    GPIO_PORTE_LOCK_R = GPIO_LOCK_KEY;      // Unlock Port D
+    GPIO_PORTE_CR_R = 0xff;                 // Commit changes,1-enable (PD7-PD0 = 11000000)
+    GPIO_PORTE_DEN_R = 0x30;                // Digital enable PD6 and PD7
+    GPIO_PORTE_AFSEL_R = 0x30;              // Enable alternate function for PD6 and PD7
+    GPIO_PORTE_AMSEL_R = 0x00;              // Turnoff analog function
+    GPIO_PORTE_PCTL_R &= ~0x00FF0000;
+    GPIO_PORTE_PCTL_R |= 0x00110000;
+}
 
-        UART5_CC_R = 0x0;           // system clock source // check for delayed enable....?
-        UART5_CTL_R = 0x00;      // UARTEN is disabled..
-
-
-    /*
-     *  control Regs...................
-     *  UARTRSR/ECR
-        UARTFR
-        UARTLCRH
-        UARTCTL
-        UARTILPR
-        UART9BITADDR
-        UART9BITAMASK
-        UARTPP
-
-        data Regs....................
-        UARTDR
-
-     *
-     *
-     *
-     *
-     * */
-
-        /* 9600 = f/16 * divisor ----------- 9600*16/f ===  104.1667
-         *
-         *
-                baudRate Regs..............
-                UARTIBRD ===== 104
-                UARTFBRD ===== 0.1667 x 64 + 0.5 ==== 11
-         *
-         *
-         */
-        UART5_IBRD_R = 104;
-        UART5_FBRD_R = 11;
-        UART5_LCRH_R = 0xE2;    // odd parity-one stop bit-fifo dis-8bit len-checkparity as 1
+void UART5_Initialisation(void) {
 
 
-        UART5_CTL_R = 0x391;      // UARTEN is enabled, EOT is set ...loopback dis, sys_clk/16, TxRx enabled  //
-
-
-    /*  Using UART5 for Transmitting operation
-     *
-     * PE5----->Tx
-     * PE4----->Rx
-     *
-     *
-     * */
-
-    GPIO_PORTE_AFSEL_R = 0x30;  // UART is enabled on PE4 and PE5
-    GPIO_PORTE_PCTL_R  = 0x30;  // encoding is 0x30 for UART5
-    GPIO_PORTE_AMSEL_R = 0x00;    // no analog functions
+    UART5_CTL_R = 0x00;                     // Disable UART before configuration
+    UART5_IBRD_R = 104;                     // Integer part of BRD = 16MHz / (16 * 9600) = 104
+    UART5_FBRD_R = 11;                      // Fractional part of BRD = 0.16 * 64 + 0.5 = 11
+    UART5_CC_R = 0x00;
+    UART5_LCRH_R = 0x72;                    // 8 bits, odd parity
+    UART5_CTL_R = 0x301;                    // Enable UART
 
 }
 
-void send(int data){
+uint8_t UART5_ReceiveByte(void) {
 
-        while((UART5_FR_R & (1<<5)) != 0);
-            UART5_DR_R = data;
-
+    while ((UART5_FR_R & 0x10) != 0) // Wait until RXFE is 0
+    {
+        UART5_send();
+    }
+    return UART5_DR_R; // Read data
+//return 0;
 }
 
+void UART5_Read(void){
 
+    receivedByte =  UART5_ReceiveByte();
 
-int rece(void){
+    if(dataReceivedFlag){
 
-
-        while((UART5_FR_R & (1<<4)) != 0);
-            return  UART5_DR_R;
-
-
-
-
-
-
-}
-void main()
-{
-    /* 0x0F ---> sw1
-     *
-     * 0xAA ---->sw2
-     * */
-
-    int count,des,data = 0x00;
-
-    SYSCTL_RCGCGPIO_R |= 0x20;  //enable clock to portf
-    SYSCTL_RCGCGPIO_R |= 0x10;  //enable clock to portE
-    SYSCTL_RCGCUART_R = 0x20;   // choose  UART5
-
-    GPIO_INIT();
-    GPIO_PORTF_INIT();
-    UART_INIT();
-
-
-    while(1){
-
-        count = 0;
-    /*add code for switch press condiotions : input : can also done using interrupt : try later*/
-
-        if((GPIO_PORTF_DATA_R & (1<<0)) == 0)
-        {
-
-            data = 0xAA;    // when sw2 is pressed
-            count  = 1;
-
-
+        if (UART5_FR_R & 0x04) {
+            GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
+            GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
+            GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
         }
 
-        if((GPIO_PORTF_DATA_R & (1<<4)) == 0)
+    else{
+
+
+        if (receivedByte == 0xAA)
         {
+            GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
+            GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
+            GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
 
-            data = 0xF0;    // when sw1 is pressed
-            count = 1;
-
+            }
+        else if (receivedByte == 0xF0)
+        {
+            GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
+            GPIO_PORTF_DATA_R |= 0x04;   // Turn on blue LED
+            GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
 
         }
+        else
+        {
+            GPIO_PORTF_DATA_R &= ~0x08;  // Turn off green LED
+            GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
+            GPIO_PORTF_DATA_R |= 0x02;     // Turn on red LED (error)
 
+        }
+    }
 
-    /*add code for switch press condiotions : input*/
-
-    send(data);     // input
-    des = rece();   // output
-
-
-    /* below part added for conditions after signal is received*/
-
-    if(des == 0xAA)
-        GPIO_PORTF_DATA_R = 0x08; // green color
-
-    if(des == 0xF0)
-        GPIO_PORTF_DATA_R = 0x04; // blue color
-
-    if(des != 0xAA && des != 0xF0 && count) // count is used to unkown results only when switches are pressed.
-        GPIO_PORTF_DATA_R = 0x02; // red color
 
 
     }
+}
 
+void UART5_send(void){
+
+    if (!(GPIO_PORTF_DATA_R & 0X01)) { // 0X01 pressed
+        UART5_Transmit(0xF0);
+        while (!(GPIO_PORTF_DATA_R & 0X01)); // Wait until released
+    }
+    if (!(GPIO_PORTF_DATA_R & 0X10)) { // 0X10 pressed
+        UART5_Transmit(0xAA);
+        while (!(GPIO_PORTF_DATA_R & 0X10)); // Wait until released
+    }
+}
+
+void UART5_Transmit(uint8_t data) {
+    while (UART5_FR_R & UART_FR_TXFF);  // Wait until the transmit FIFO is not full
+    UART5_DR_R = data;                  // Transmit data
+}
+
+int main(void) {
+    PortF_Initialisation();
+    PORTE_Initialisation();
+    UART5_Initialisation();
+    //__asm("    cpsie i");                // Global interrupt enable
+
+    while (1) {
+
+        UART5_Read();
+    }
 }

@@ -26,6 +26,7 @@ MEMORY
 
 /* Section allocation in memory */
 
+
 SECTIONS
 {
     .intvecs:   > 0x00000000
