@@ -62,6 +62,7 @@ uint8_t UART5_ReceiveByte(void)
     {
         UART5_send();
     }
+
     return UART5_DR_R; // Read data
 
 }
@@ -74,7 +75,8 @@ void UART5_Read(void)
     if(dataReceivedFlag)
     {
 
-        if (UART5_FR_R & 0x04) {
+        if (UART5_FR_R & 0x04)
+        {
             GPIO_PORTF_DATA_R |= 0x08;  // Turn on green LED
             GPIO_PORTF_DATA_R &= ~0x04;   // Turn off blue LED
             GPIO_PORTF_DATA_R &= ~0x02;     // Turn off red LED (error
@@ -109,29 +111,36 @@ void UART5_Read(void)
     }
 }
 
-void UART5_send(void){
+void UART5_send(void)
+{
 
-    if (!(GPIO_PORTF_DATA_R & 0X01)) { // 0X01 pressed
+    if (!(GPIO_PORTF_DATA_R & 0X01))
+    { // 0X01 pressed
         UART5_Transmit(0xF0);
         while (!(GPIO_PORTF_DATA_R & 0X01)); // Wait until released
     }
-    if (!(GPIO_PORTF_DATA_R & 0X10)) { // 0X10 pressed
+
+    if (!(GPIO_PORTF_DATA_R & 0X10))
+    { // 0X10 pressed
         UART5_Transmit(0xAA);
         while (!(GPIO_PORTF_DATA_R & 0X10)); // Wait until released
     }
 }
 
-void UART5_Transmit(uint8_t data) {
+void UART5_Transmit(uint8_t data)
+{
     while (UART5_FR_R & UART_FR_TXFF);  // Wait until the transmit FIFO is not full
     UART5_DR_R = data;                  // Transmit data
 }
 
-int main(void) {
+int main(void)
+{
     PortF_Initialisation();
     PORTE_Initialisation();
     UART5_Initialisation();
 
-    while (1) {
+    while (1)
+    {
 
         UART5_Read();
     }
